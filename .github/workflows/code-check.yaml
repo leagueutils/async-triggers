@@ -1,0 +1,37 @@
+name: Static Code Checks
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+  workflow_dispatch:
+
+jobs:
+  pre-commit:
+    name: 'Job: Pre-commit'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.9']
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          cache: 'pip'
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install pre-commit
+        run: pip install pre-commit
+
+      - name: Run pre-commit (on PR)
+        if: github.event_name == 'pull_request'
+        run: pre-commit run --show-diff-on-failure --color=always --all-files
+
+      - name: Run pre-commit (on branch)
+        if: github.event_name != 'pull_request'
+        run: SKIP=no-commit-to-branch pre-commit run --show-diff-on-failure --color=always --all-files
