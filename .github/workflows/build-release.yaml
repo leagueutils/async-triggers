@@ -1,0 +1,53 @@
+name: Build package
+
+on:
+  release:
+    types: [released, prereleased]
+  workflow_dispatch:
+    inputs:
+      developmentVersion:
+        description: 'Version'
+        required: true
+        default: '1.0.0'
+
+jobs:
+  build:
+    name: 'Job: Build'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.9']
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          cache: 'pip'
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install poetry (1.8.3) & dependencies
+        run: |
+          pip install poetry==1.8.3
+          poetry install --no-root
+
+      - name: Build package
+        run: |
+          poetry config virtualenvs.create false
+          poetry build
+
+      - name: Add built project to GitHub release
+        if: github.event_name == 'release'
+        uses: svenstaro/upload-release-action@v2
+        with:
+          file: dist/*
+          file_glob: true
+          overwrite: true
+          make_latest: false
+
+      - name: Merge release into main
+        run: |
+          gh_pr_up() { gh pr create $* || gh pr edit $* }
+          gh_pr_up --title "Merge ${{ github.ref_name }} into main" --base main

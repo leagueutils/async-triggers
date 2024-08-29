@@ -3,14 +3,12 @@ import datetime
 import functools
 import logging
 import warnings
-
 from abc import ABC, abstractmethod
 from traceback import format_exception
 from typing import Any, Callable, Optional, Union
 
 from .cron import CronSchedule
 from .types import CoroFunction, ErrorHandler
-
 
 default_error_handler = None  # target for the @on_error() decorator
 trigger_registry = []  # target for start_triggers()
@@ -52,23 +50,25 @@ class BaseTrigger(ABC):
 
     """
 
-    def __init__(self,
-                 *,  # disable positional arguments
-                 iter_args: Optional[list] = None,
-                 on_startup: Optional[bool] = True,
-                 autostart: bool = False,
-                 error_handler: Optional[ErrorHandler] = None,
-                 logger: Optional[logging.Logger] = None,
-                 loop: Optional[asyncio.AbstractEventLoop] = None,
-                 **kwargs):
-
+    def __init__(
+        self,
+        *,  # disable positional arguments
+        iter_args: Optional[list] = None,
+        on_startup: Optional[bool] = True,
+        autostart: bool = False,
+        error_handler: Optional[ErrorHandler] = None,
+        logger: Optional[logging.Logger] = None,
+        loop: Optional[asyncio.AbstractEventLoop] = None,
+        **kwargs,
+    ):
         if not error_handler and not default_error_handler and not logger:
             warnings.warn(
                 'No logger or error handler are defined. Without either of these components, any errors '
                 'raised during the trigger executions will be silently ignored. If you declared a global '
                 'error handler using the `@on_error()` decorator, you can safely ignore this warning or '
                 'remove it entirely by placing the handler declaration before the trigger declarations',
-                category=RuntimeWarning
+                category=RuntimeWarning,
+                stacklevel=2,
             )
 
         self.iter_args = iter_args
@@ -85,8 +85,7 @@ class BaseTrigger(ABC):
         return self.__wrapper(func)
 
     def __wrapper(self, func: CoroFunction):
-        """The main workhorse. Handles the repetition of the decorated function as well as logging and error handling
-        """
+        """The main workhorse. Handles the repetition of the decorated function as well as logging and error handling"""
 
         # fill any passed kwargs
         fixture = functools.partial(func, **self.kwargs)
@@ -161,8 +160,11 @@ class BaseTrigger(ABC):
         """
 
         if self.logger:
-            self.logger.error(f'function: {func.__name__}, failing iter_arg: {arg}\n'
-                              ''.join(format_exception(type(exc), exc, exc.__traceback__)))
+            self.logger.error(
+                f'function: {func.__name__}, failing iter_arg: {arg}\n' ''.join(
+                    format_exception(type(exc), exc, exc.__traceback__)
+                )
+            )
 
         error_handler = self.error_handler or default_error_handler
         if error_handler:
@@ -238,20 +240,26 @@ class IntervalTrigger(BaseTrigger):
     """
 
     def __init__(
-            self,
-            *,  # disable positional arguments
-            seconds: int,
-            iter_args: Optional[list] = None,
-            on_startup: bool = True,
-            autostart: bool = False,
-            error_handler: Optional[ErrorHandler] = None,
-            logger: Optional[logging.Logger] = None,
-            loop: Optional[asyncio.AbstractEventLoop] = None,
-            **kwargs
+        self,
+        *,  # disable positional arguments
+        seconds: int,
+        iter_args: Optional[list] = None,
+        on_startup: bool = True,
+        autostart: bool = False,
+        error_handler: Optional[ErrorHandler] = None,
+        logger: Optional[logging.Logger] = None,
+        loop: Optional[asyncio.AbstractEventLoop] = None,
+        **kwargs,
     ):
-
-        super().__init__(iter_args=iter_args, on_startup=on_startup, autostart=autostart,
-                         error_handler=error_handler, logger=logger, loop=loop, **kwargs)
+        super().__init__(
+            iter_args=iter_args,
+            on_startup=on_startup,
+            autostart=autostart,
+            error_handler=error_handler,
+            logger=logger,
+            loop=loop,
+            **kwargs,
+        )
 
         if not isinstance(seconds, int) or seconds <= 0:
             raise ValueError(f'`seconds` must be a positive integer, got {seconds}')
@@ -270,22 +278,52 @@ class IntervalTrigger(BaseTrigger):
         return datetime.datetime.now().astimezone() + datetime.timedelta(seconds=self._interval_seconds)
 
     @classmethod
-    def hourly(cls, iter_args: Optional[list] = None, on_startup: bool = True, autostart: bool = False,
-               error_handler: Optional[ErrorHandler] = None, logger: Optional[logging.Logger] = None,
-               loop: Optional[asyncio.AbstractEventLoop] = None, **kwargs):
+    def hourly(
+        cls,
+        iter_args: Optional[list] = None,
+        on_startup: bool = True,
+        autostart: bool = False,
+        error_handler: Optional[ErrorHandler] = None,
+        logger: Optional[logging.Logger] = None,
+        loop: Optional[asyncio.AbstractEventLoop] = None,
+        **kwargs,
+    ):
         """A shortcut to create a trigger that runs with a one-hour break between executions"""
 
-        return cls(seconds=3600, iter_args=iter_args, on_startup=on_startup, autostart=autostart,
-                   error_handler=error_handler, logger=logger, loop=loop, **kwargs)
+        return cls(
+            seconds=3600,
+            iter_args=iter_args,
+            on_startup=on_startup,
+            autostart=autostart,
+            error_handler=error_handler,
+            logger=logger,
+            loop=loop,
+            **kwargs,
+        )
 
     @classmethod
-    def daily(cls, iter_args: Optional[list] = None, on_startup: bool = True, autostart: bool = False,
-              error_handler: Optional[ErrorHandler] = None, logger: Optional[logging.Logger] = None,
-              loop: Optional[asyncio.AbstractEventLoop] = None, **kwargs):
+    def daily(
+        cls,
+        iter_args: Optional[list] = None,
+        on_startup: bool = True,
+        autostart: bool = False,
+        error_handler: Optional[ErrorHandler] = None,
+        logger: Optional[logging.Logger] = None,
+        loop: Optional[asyncio.AbstractEventLoop] = None,
+        **kwargs,
+    ):
         """A shortcut to create a trigger that runs with a 24-hour break between executions"""
 
-        return cls(seconds=86400, iter_args=iter_args, on_startup=on_startup, autostart=autostart,
-                   error_handler=error_handler, logger=logger, loop=loop, **kwargs)
+        return cls(
+            seconds=86400,
+            iter_args=iter_args,
+            on_startup=on_startup,
+            autostart=autostart,
+            error_handler=error_handler,
+            logger=logger,
+            loop=loop,
+            **kwargs,
+        )
 
 
 class CronTrigger(BaseTrigger):
@@ -342,19 +380,27 @@ class CronTrigger(BaseTrigger):
             print(f'The argument is {an_argument}')
     """
 
-    def __init__(self,
-                 *,  # disable positional arguments
-                 cron_schedule: Union[CronSchedule, str],
-                 iter_args: Optional[list] = None,
-                 on_startup: bool = True,
-                 autostart: bool = False,
-                 error_handler: Optional[ErrorHandler] = None,
-                 logger: Optional[logging.Logger] = None,
-                 loop: Optional[asyncio.AbstractEventLoop] = None,
-                 **kwargs):
-
-        super().__init__(iter_args=iter_args, on_startup=on_startup, autostart=autostart,
-                         error_handler=error_handler, logger=logger, loop=loop, **kwargs)
+    def __init__(
+        self,
+        *,  # disable positional arguments
+        cron_schedule: Union[CronSchedule, str],
+        iter_args: Optional[list] = None,
+        on_startup: bool = True,
+        autostart: bool = False,
+        error_handler: Optional[ErrorHandler] = None,
+        logger: Optional[logging.Logger] = None,
+        loop: Optional[asyncio.AbstractEventLoop] = None,
+        **kwargs,
+    ):
+        super().__init__(
+            iter_args=iter_args,
+            on_startup=on_startup,
+            autostart=autostart,
+            error_handler=error_handler,
+            logger=logger,
+            loop=loop,
+            **kwargs,
+        )
 
         if isinstance(cron_schedule, str):
             cron_schedule = CronSchedule(cron_schedule)
@@ -378,40 +424,100 @@ class CronTrigger(BaseTrigger):
         return self.cron_schedule.next_run_after(now.replace(second=0, microsecond=0) + datetime.timedelta(minutes=1))
 
     @classmethod
-    def hourly(cls, iter_args: Optional[list] = None, on_startup: bool = True, autostart: bool = False,
-               error_handler: Optional[ErrorHandler] = None, logger: Optional[logging.Logger] = None,
-               loop: Optional[asyncio.AbstractEventLoop] = None, **kwargs):
+    def hourly(
+        cls,
+        iter_args: Optional[list] = None,
+        on_startup: bool = True,
+        autostart: bool = False,
+        error_handler: Optional[ErrorHandler] = None,
+        logger: Optional[logging.Logger] = None,
+        loop: Optional[asyncio.AbstractEventLoop] = None,
+        **kwargs,
+    ):
         """A shortcut to create a trigger that runs at the start of every hour"""
 
-        return cls(cron_schedule='0 * * * *', iter_args=iter_args, on_startup=on_startup, autostart=autostart,
-                   error_handler=error_handler, logger=logger, loop=loop, **kwargs)
+        return cls(
+            cron_schedule='0 * * * *',
+            iter_args=iter_args,
+            on_startup=on_startup,
+            autostart=autostart,
+            error_handler=error_handler,
+            logger=logger,
+            loop=loop,
+            **kwargs,
+        )
 
     @classmethod
-    def daily(cls, iter_args: Optional[list] = None, on_startup: bool = True, autostart: bool = False,
-              error_handler: Optional[ErrorHandler] = None, logger: Optional[logging.Logger] = None,
-              loop: Optional[asyncio.AbstractEventLoop] = None, **kwargs):
+    def daily(
+        cls,
+        iter_args: Optional[list] = None,
+        on_startup: bool = True,
+        autostart: bool = False,
+        error_handler: Optional[ErrorHandler] = None,
+        logger: Optional[logging.Logger] = None,
+        loop: Optional[asyncio.AbstractEventLoop] = None,
+        **kwargs,
+    ):
         """A shortcut to create a trigger that runs at the start of every day"""
 
-        return cls(cron_schedule='0 0 * * *', iter_args=iter_args, on_startup=on_startup, autostart=autostart,
-                   error_handler=error_handler, logger=logger, loop=loop, **kwargs)
+        return cls(
+            cron_schedule='0 0 * * *',
+            iter_args=iter_args,
+            on_startup=on_startup,
+            autostart=autostart,
+            error_handler=error_handler,
+            logger=logger,
+            loop=loop,
+            **kwargs,
+        )
 
     @classmethod
-    def weekly(cls, iter_args: Optional[list] = None, on_startup: bool = True, autostart: bool = False,
-               error_handler: Optional[ErrorHandler] = None, logger: Optional[logging.Logger] = None,
-               loop: Optional[asyncio.AbstractEventLoop] = None, **kwargs):
+    def weekly(
+        cls,
+        iter_args: Optional[list] = None,
+        on_startup: bool = True,
+        autostart: bool = False,
+        error_handler: Optional[ErrorHandler] = None,
+        logger: Optional[logging.Logger] = None,
+        loop: Optional[asyncio.AbstractEventLoop] = None,
+        **kwargs,
+    ):
         """A shortcut to create a trigger that runs at the start of every week (Sunday at 00:00)"""
 
-        return cls(cron_schedule='0 0 * * 0', iter_args=iter_args, on_startup=on_startup, autostart=autostart,
-                   error_handler=error_handler, logger=logger, loop=loop, **kwargs)
+        return cls(
+            cron_schedule='0 0 * * 0',
+            iter_args=iter_args,
+            on_startup=on_startup,
+            autostart=autostart,
+            error_handler=error_handler,
+            logger=logger,
+            loop=loop,
+            **kwargs,
+        )
 
     @classmethod
-    def monthly(cls, iter_args: Optional[list] = None, on_startup: bool = True, autostart: bool = False,
-                error_handler: Optional[ErrorHandler] = None, logger: Optional[logging.Logger] = None,
-                loop: Optional[asyncio.AbstractEventLoop] = None, **kwargs):
+    def monthly(
+        cls,
+        iter_args: Optional[list] = None,
+        on_startup: bool = True,
+        autostart: bool = False,
+        error_handler: Optional[ErrorHandler] = None,
+        logger: Optional[logging.Logger] = None,
+        loop: Optional[asyncio.AbstractEventLoop] = None,
+        **kwargs,
+    ):
         """A shortcut to create a trigger that runs at the start of every month"""
 
-        return cls(cron_schedule='0 0 1 * *', iter_args=iter_args, on_startup=on_startup, autostart=autostart,
-                   error_handler=error_handler, logger=logger, loop=loop, **kwargs)
+        return cls(
+            cron_schedule='0 0 1 * *',
+            iter_args=iter_args,
+            on_startup=on_startup,
+            autostart=autostart,
+            error_handler=error_handler,
+            logger=logger,
+            loop=loop,
+            **kwargs,
+        )
 
 
 def on_error() -> Callable[[ErrorHandler], ErrorHandler]:
@@ -453,7 +559,9 @@ def on_error() -> Callable[[ErrorHandler], ErrorHandler]:
         @functools.wraps(func)
         async def wrapped(function_name: str, arg: Any, error: Exception):
             await func(function_name, arg, error)
+
         return wrapped
+
     return wrapper
 
 

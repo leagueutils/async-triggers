@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "async-triggers"
+name = "triggers"
 version = "1.0.0"
 description = ""
 authors = ["lukasthaler <33826427+lukasthaler@users.noreply.github.com>"]
@@ -13,3 +13,25 @@ python = "^3.9"
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
+[tool.ruff]
+line-length = 120
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "C",  # flake8-comprehensions
+    "B",  # flake8-bugbear
+]
+ignore = [
+    "C901",  # too complex
+]
+
+[tool.ruff.format]
+quote-style = "single"
+
+[tool.ruff.isort]
+section-order = ["future", "standard-library", "third-party", "first-party", "local-folder"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "pep257"

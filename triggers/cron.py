@@ -1,10 +1,8 @@
 import warnings
-
 from calendar import monthrange
 from collections import namedtuple
 from datetime import datetime, timedelta
 from typing import Any, List, Tuple
-
 
 LIMITS = [[0, 59], [0, 23], [1, 31], [1, 12], [0, 6]]
 NAMES = ['minute', 'hour', 'day_of_month', 'month', 'day_of_week']
@@ -120,8 +118,11 @@ class CronSchedule:
 
         # translate day of week into its equivalent day of month
         month_days = monthrange(reference_date.year, reference_date.month)[1]
-        dow = reference_date.day + (7 + dow - reference_date.isoweekday()) % 7 + \
-            (7 if dow_overflow and reference_date.isoweekday() == dow else 0)
+        dow = (
+            reference_date.day
+            + (7 + dow - reference_date.isoweekday()) % 7
+            + (7 if dow_overflow and reference_date.isoweekday() == dow else 0)
+        )
         dow_overflow = dow > month_days
         dow = (dow - 1) % month_days + 1
 
@@ -159,7 +160,9 @@ class CronSchedule:
         if tz_naive:
             warnings.warn(
                 'The input datetime was datetime-naive. Assuming the time zone of your device for processing. '
-                'The return value will be datetime-naive again', category=RuntimeWarning
+                'The return value will be datetime-naive again',
+                category=RuntimeWarning,
+                stacklevel=2,
             )
             after = after.replace(tzinfo=datetime.now().astimezone().tzinfo)
 
@@ -169,16 +172,19 @@ class CronSchedule:
         next_minute, min_overflow = self.__next_allowed_val(now_parts.minute, self.allowed_values.minute)
 
         # next run's hour
-        next_hour, hr_overflow = self.__next_allowed_val(now_parts.hour + (1 if min_overflow else 0),
-                                                         self.allowed_values.hour)
+        next_hour, hr_overflow = self.__next_allowed_val(
+            now_parts.hour + (1 if min_overflow else 0), self.allowed_values.hour
+        )
         if hr_overflow or next_hour > now_parts.hour:  # we overflowed into the next hour, backtrack
             next_minute = self.allowed_values.minute[0]
 
         # next run's day
-        next_dow, dow_overflow = self.__next_allowed_val(now_parts.day_of_week + (1 if hr_overflow else 0),
-                                                         self.allowed_values.day_of_week)
-        next_dom, dom_overflow = self.__next_allowed_val(now_parts.day_of_month + (1 if hr_overflow else 0),
-                                                         self.allowed_values.day_of_month)
+        next_dow, dow_overflow = self.__next_allowed_val(
+            now_parts.day_of_week + (1 if hr_overflow else 0), self.allowed_values.day_of_week
+        )
+        next_dom, dom_overflow = self.__next_allowed_val(
+            now_parts.day_of_month + (1 if hr_overflow else 0), self.allowed_values.day_of_month
+        )
         if next_dom > monthrange(after.year, after.month)[1]:  # current month doesn't allow this day
             next_dom, dom_overflow = self.allowed_values.day_of_month[0], True
         next_day, day_overflow = self.__determine_day(after, next_dow, dow_overflow, next_dom, dom_overflow)
@@ -187,8 +193,9 @@ class CronSchedule:
             next_hour = self.allowed_values.hour[0]
 
         # next run's month & year
-        next_month, month_overflow = self.__next_allowed_val(now_parts.month + (1 if day_overflow else 0),
-                                                             self.allowed_values.month)
+        next_month, month_overflow = self.__next_allowed_val(
+            now_parts.month + (1 if day_overflow else 0), self.allowed_values.month
+        )
         next_year = after.year + 1 if month_overflow else after.year
         if month_overflow or next_month > now_parts.month:  # backtrack
             next_minute = self.allowed_values.minute[0]
@@ -200,8 +207,9 @@ class CronSchedule:
 
         if tz_naive:
             return datetime(year=next_year, month=next_month, day=next_day, hour=next_hour, minute=next_minute)
-        return datetime(year=next_year, month=next_month, day=next_day, hour=next_hour,
-                        minute=next_minute, tzinfo=after.tzinfo)
+        return datetime(
+            year=next_year, month=next_month, day=next_day, hour=next_hour, minute=next_minute, tzinfo=after.tzinfo
+        )
 
     @property
     def next_run(self) -> datetime:
