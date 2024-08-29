@@ -3,11 +3,9 @@ import logging
 
 from triggers import CronSchedule, CronTrigger, IntervalTrigger, on_error, start_triggers
 
-
 cron = CronSchedule('0 0 * * *')
 event_loop = asyncio.get_event_loop()
-logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s',
-                    datefmt='%Y-%m-%d %H:%M:%S')
+logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
 _logger = logging.getLogger()
 
 
@@ -39,7 +37,7 @@ async def test_special_error_handling():
     """This trigger showcases the convenience class methods and the use of a dedicated error handler"""
 
     print('This is about to fail in a very special way')
-    return 1/0
+    return 1 / 0
 
 
 @IntervalTrigger(seconds=10, iter_args=[1, 0], autostart=True, loop=event_loop, logger=_logger)
@@ -50,10 +48,10 @@ async def test_default_error_handling(divisor: int):
     """
 
     print('We are safe' if divisor != 0 else 'Boom')
-    return 2/divisor
+    return 2 / divisor
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     try:
         # wait a few seconds to simulate other resources loading
         event_loop.run_until_complete(asyncio.sleep(3))
