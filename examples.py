@@ -40,11 +40,12 @@ async def test_special_error_handling():
     return 1 / 0
 
 
-@IntervalTrigger(seconds=10, iter_args=[1, 0], autostart=True, loop=event_loop, logger=_logger)
+@IntervalTrigger(seconds=10, max_trigger_count=3, iter_args=[1, 0], autostart=True, loop=event_loop, logger=_logger)
 async def test_default_error_handling(divisor: int):
     """This trigger demonstrates the use of `autostart=True` (this is fine because it has no dependencies
     on other resources) in combination with `iter_args` and the default error handler defined by @on_error.
-    It also is the trigger with the lowest repeat timer to showcase the fact that triggers indeed do repeat
+    It also is the trigger with the lowest repeat timer to showcase the fact that triggers indeed do repeat,
+    and because its max_trigger_count is set to 3, it will cease repeating after the third iteration
     """
 
     print('We are safe' if divisor != 0 else 'Boom')

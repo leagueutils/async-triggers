@@ -21,6 +21,10 @@ class BaseTrigger(ABC):
 
     Arguments:
 
+    max_trigger_count:
+        an optional integer. If specified, the trigger will exit after it has been called that many times.
+        If omitted, the trigger will repeat indefinitely
+
     iter_args:
         an optional list of arguments. The decorated function will be called once per list element,
         and the element will be passed to the decorated function as the first positional argument
@@ -53,6 +57,7 @@ class BaseTrigger(ABC):
     def __init__(
         self,
         *,  # disable positional arguments
+        max_trigger_count: Optional[int] = None,
         iter_args: Optional[list] = None,
         on_startup: Optional[bool] = True,
         autostart: bool = False,
@@ -78,7 +83,9 @@ class BaseTrigger(ABC):
         self.logger = logger
         self.loop = loop or asyncio.get_event_loop()
         self.kwargs = kwargs
+        self.max_trigger_count = max_trigger_count
 
+        self._trigger_count = 0
         self.task = None  # placeholder for the repeat task created in self.__wrapper
 
     def __call__(self, func: CoroFunction):
@@ -108,6 +115,9 @@ class BaseTrigger(ABC):
                     if self.logger:
                         self.logger.info(f'Running {self.__class__.__name__} for {func.__name__}')
 
+                    if self.max_trigger_count is not None:
+                        self._trigger_count += 1
+
                     # call the decorated function
                     try:
                         if self.iter_args:
@@ -121,6 +131,15 @@ class BaseTrigger(ABC):
                             await fixture()
                     except Exception as e:
                         await self.__handle_exception(func, None, e)
+
+                    # stop after the maximum number of triggers has been reached
+                    if self.max_trigger_count is not None and self._trigger_count >= self.max_trigger_count:
+                        if self.logger:
+                            self.logger.info(
+                                f'{self.__class__.__name__} has reached the execution limit of {self.max_trigger_count}'
+                                f' executions for {func.__name__}. Terminating'
+                            )
+                        break
 
                     # sleep until next execution time
                     next_run = self.next_run
@@ -196,6 +215,10 @@ class IntervalTrigger(BaseTrigger):
     seconds:
         how many seconds to wait between trigger runs
 
+    max_trigger_count:
+        an optional integer. If specified, the trigger will exit after it has been called that many times.
+        If omitted, the trigger will repeat indefinitely
+
     iter_args:
         an optional list of arguments. The decorated function will be called once per list element,
         and the element will be passed to the decorated function as the first positional argument. If
@@ -243,6 +266,7 @@ class IntervalTrigger(BaseTrigger):
         self,
         *,  # disable positional arguments
         seconds: int,
+        max_trigger_count: Optional[int] = None,
         iter_args: Optional[list] = None,
         on_startup: bool = True,
         autostart: bool = False,
@@ -252,6 +276,7 @@ class IntervalTrigger(BaseTrigger):
         **kwargs,
     ):
         super().__init__(
+            max_trigger_count=max_trigger_count,
             iter_args=iter_args,
             on_startup=on_startup,
             autostart=autostart,
@@ -280,6 +305,7 @@ class IntervalTrigger(BaseTrigger):
     @classmethod
     def hourly(
         cls,
+        max_trigger_count: Optional[int] = None,
         iter_args: Optional[list] = None,
         on_startup: bool = True,
         autostart: bool = False,
@@ -292,6 +318,7 @@ class IntervalTrigger(BaseTrigger):
 
         return cls(
             seconds=3600,
+            max_trigger_count=max_trigger_count,
             iter_args=iter_args,
             on_startup=on_startup,
             autostart=autostart,
@@ -304,6 +331,7 @@ class IntervalTrigger(BaseTrigger):
     @classmethod
     def daily(
         cls,
+        max_trigger_count: Optional[int] = None,
         iter_args: Optional[list] = None,
         on_startup: bool = True,
         autostart: bool = False,
@@ -316,6 +344,7 @@ class IntervalTrigger(BaseTrigger):
 
         return cls(
             seconds=86400,
+            max_trigger_count=max_trigger_count,
             iter_args=iter_args,
             on_startup=on_startup,
             autostart=autostart,
@@ -335,6 +364,10 @@ class CronTrigger(BaseTrigger):
 
     cron_schedule:
         the Cron schedule to follow
+
+    max_trigger_count:
+        an optional integer. If specified, the trigger will exit after it has been called that many times.
+        If omitted, the trigger will repeat indefinitely
 
     iter_args:
         an optional list of arguments. The decorated function will be called once per list element,
@@ -384,6 +417,7 @@ class CronTrigger(BaseTrigger):
         self,
         *,  # disable positional arguments
         cron_schedule: Union[CronSchedule, str],
+        max_trigger_count: Optional[int] = None,
         iter_args: Optional[list] = None,
         on_startup: bool = True,
         autostart: bool = False,
@@ -393,6 +427,7 @@ class CronTrigger(BaseTrigger):
         **kwargs,
     ):
         super().__init__(
+            max_trigger_count=max_trigger_count,
             iter_args=iter_args,
             on_startup=on_startup,
             autostart=autostart,
@@ -426,6 +461,7 @@ class CronTrigger(BaseTrigger):
     @classmethod
     def hourly(
         cls,
+        max_trigger_count: Optional[int] = None,
         iter_args: Optional[list] = None,
         on_startup: bool = True,
         autostart: bool = False,
@@ -438,6 +474,7 @@ class CronTrigger(BaseTrigger):
 
         return cls(
             cron_schedule='0 * * * *',
+            max_trigger_count=max_trigger_count,
             iter_args=iter_args,
             on_startup=on_startup,
             autostart=autostart,
@@ -450,6 +487,7 @@ class CronTrigger(BaseTrigger):
     @classmethod
     def daily(
         cls,
+        max_trigger_count: Optional[int] = None,
         iter_args: Optional[list] = None,
         on_startup: bool = True,
         autostart: bool = False,
@@ -462,6 +500,7 @@ class CronTrigger(BaseTrigger):
 
         return cls(
             cron_schedule='0 0 * * *',
+            max_trigger_count=max_trigger_count,
             iter_args=iter_args,
             on_startup=on_startup,
             autostart=autostart,
@@ -474,6 +513,7 @@ class CronTrigger(BaseTrigger):
     @classmethod
     def weekly(
         cls,
+        max_trigger_count: Optional[int] = None,
         iter_args: Optional[list] = None,
         on_startup: bool = True,
         autostart: bool = False,
@@ -486,6 +526,7 @@ class CronTrigger(BaseTrigger):
 
         return cls(
             cron_schedule='0 0 * * 0',
+            max_trigger_count=max_trigger_count,
             iter_args=iter_args,
             on_startup=on_startup,
             autostart=autostart,
@@ -498,6 +539,7 @@ class CronTrigger(BaseTrigger):
     @classmethod
     def monthly(
         cls,
+        max_trigger_count: Optional[int] = None,
         iter_args: Optional[list] = None,
         on_startup: bool = True,
         autostart: bool = False,
@@ -510,6 +552,7 @@ class CronTrigger(BaseTrigger):
 
         return cls(
             cron_schedule='0 0 1 * *',
+            max_trigger_count=max_trigger_count,
             iter_args=iter_args,
             on_startup=on_startup,
             autostart=autostart,

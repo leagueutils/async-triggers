@@ -86,6 +86,10 @@ receive the following events:
 
 ### Other Parameters
 
+If you want the trigger to stop after a certain number of iterations, you can set the `max_trigger_count`. Once the
+trigger has been called that amount of times, it will exit. If the parameter is omitted, the trigger will repeat
+indefinitely.
+
 Triggers allow you to specify a list of elements you want the decorated function to be spread over. If you specify
 the `iter_args` parameter when initialising a trigger, it will call the decorated function once for each element of
 that parameter. Each element will be positionally passed into the function's first argument. If you prefer to keep
@@ -127,20 +131,23 @@ from triggers import BaseTrigger, types
 from typing import Optional
 
 class RandomTrigger(BaseTrigger):
-   def __init__(self,
-                *,  # disable positional arguments
-                min_seconds: int,
-                max_seconds: int,
-                iter_args: Optional[list] = None,
-                on_startup: bool = True,
-                autostart: bool = False,
-                error_handler: Optional[types.CoroFunction] = None,
-                logger: Optional[logging.Logger] = None,
-                loop: Optional[asyncio.AbstractEventLoop] = None,
-                **kwargs):
+   def __init__(
+           self,
+           *,  # disable positional arguments
+           min_seconds: int,
+           max_seconds: int,
+           max_trigger_count: Optional[int] = None,
+           iter_args: Optional[list] = None,
+           on_startup: bool = True,
+           autostart: bool = False,
+           error_handler: Optional[types.CoroFunction] = None,
+           logger: Optional[logging.Logger] = None,
+           loop: Optional[asyncio.AbstractEventLoop] = None,
+           **kwargs
+   ):
 
-       super().__init__(iter_args=iter_args, on_startup=on_startup, autostart=autostart,
-                        error_handler=error_handler, logger=logger, loop=loop, **kwargs)
+       super().__init__(max_trigger_count=max_trigger_count, iter_args=iter_args, on_startup=on_startup,
+                        autostart=autostart, error_handler=error_handler, logger=logger, loop=loop, **kwargs)
        self.min_seconds = min_seconds
        self.max_seconds = max_seconds
 
