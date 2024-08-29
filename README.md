@@ -15,7 +15,7 @@ It provides you with powerful and easy to use decorators that turn your coroutin
 without the need for any additional modifications. It is as simple as putting a trigger decorator on your existing
 coroutine functions. The library comes with:
 
-- two types of triggers: `IntervalTrigger`  and `CronTrigger`,
+- three types of triggers: `IntervalTrigger`, `CronTrigger` and `ScheduledTrigger`,
 - customisable error handlers for each trigger and a global `@on_error()` fallback handler,
 - extensive logging that can seamlessly be integrated with your existing logger,
 - integrated tools to apply your repeating function across an iterable, and
@@ -40,6 +40,16 @@ instantiate triggers with common patters have been provided:
 - `daily()` implements `0 0 * * *`,
 - `weekly()` implements `0 0 * * 0`, and
 - `monthly()` implements `0 0 1 * *`.
+
+### ScheduledTrigger
+
+The `ScheduledTrigger` class allows you to specify one or more *timezone-aware* `datetime.datetime` objects. The
+trigger will then execute on these times and exit once it has exhausted all of them. For convenience, this trigger
+also defines a set of class methods:
+
+- `in_one_hour()` defines a trigger that will fire exactly one hour after the trigger was initialized
+- `in_one_day()` defines a trigger that will fire exactly 24 hours after the trigger was initialized
+- `tomorrow()` defines a trigger that will fire at 00:00 on the day following the one the trigger was initialized on
 
 ### Starting the Triggers
 

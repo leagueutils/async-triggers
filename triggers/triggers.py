@@ -5,7 +5,7 @@ import logging
 import warnings
 from abc import ABC, abstractmethod
 from traceback import format_exception
-from typing import Any, Optional, Union
+from typing import Any, List, Optional, Union
 
 from .cron import CronSchedule
 from .exceptions import StopRunning, get_default_handler
@@ -570,6 +570,191 @@ class CronTrigger(BaseTrigger):
 
         return cls(
             cron_schedule='0 0 1 * *',
+            max_trigger_count=max_trigger_count,
+            iter_args=iter_args,
+            on_startup=on_startup,
+            autostart=autostart,
+            error_handler=error_handler,
+            logger=logger,
+            loop=loop,
+            **kwargs,
+        )
+
+
+class ScheduledTrigger(BaseTrigger):
+    """
+    A decorator class to repeat a function at specified times
+
+    Attributes
+    ----------
+
+    run_times:
+        one or more timezone-aware `datetime.datetime`s when the trigger should run
+
+    max_trigger_count:
+        an optional integer. If specified, the trigger will exit after it has been called that many times.
+        If omitted, the trigger will repeat indefinitely
+
+    iter_args:
+        an optional list of arguments. The decorated function will be called once per list element,
+        and the element will be passed to the decorated function as the first positional argument. If
+        no iter_args are defined, nothing (especially not `None`) will be injected into the decorated function
+
+    on_startup:
+        whether to trigger a run of the decorated function on startup. Defaults to `True`
+
+    autostart:
+        whether to automatically start the trigger. Auto-starting it may cause required components to not
+        have fully loaded and initialized. If you choose to disable autostart (which is the default),
+        you can use `triggers.start_triggers()` to manually kick the trigger execution off once you
+        have loaded all required resources
+
+    error_handler:
+        an optional coroutine function that will be called on each error incurred during the trigger execution.
+        The handler will receive three arguments:
+
+            function_name: str
+                the name of the failing trigger's decorated function
+            arg: Optional[Any]
+                the failing `iter_args` element or None if no iter_args are defined
+            exception: Exception
+                the exception that occurred
+
+    logger:
+        an optional logger instance implementing the logging.Logger functionality. Debug, warning and error logs
+        about the trigger execution will be sent to this logger
+
+    loop:
+        an optional event loop that the trigger execution will be appended to. If no loop is provided,
+        the trigger will provision one using `asyncio.get_event_loop()`
+
+    kwargs:
+        any additional keyword arguments that will be passed to the decorated function every time it is called
+
+    Example
+    -------
+
+        @ScheduledTrigger(run_times=datetime.datetime(2025, 1, 1).astimezone(), iter_args=['Foo', 'Bar'])
+        async def do_something(an_argument):
+            print(f'The argument is {an_argument}')
+    """
+
+    def __init__(
+        self,
+        *,  # disable positional arguments
+        run_times: Union[datetime.datetime, List[datetime.datetime]],
+        max_trigger_count: Optional[int] = None,
+        iter_args: Optional[list] = None,
+        on_startup: bool = True,
+        autostart: bool = False,
+        error_handler: Optional[ErrorHandler] = None,
+        logger: Optional[logging.Logger] = None,
+        loop: Optional[asyncio.AbstractEventLoop] = None,
+        **kwargs,
+    ):
+        super().__init__(
+            max_trigger_count=max_trigger_count,
+            iter_args=iter_args,
+            on_startup=on_startup,
+            autostart=autostart,
+            error_handler=error_handler,
+            logger=logger,
+            loop=loop,
+            **kwargs,
+        )
+
+        if isinstance(run_times, datetime.datetime):
+            self.run_times = [run_times]
+        else:
+            self.run_times = sorted(run_times)
+
+    @property
+    def next_run(self) -> datetime:
+        """Return the next scheduled run time from the list defined during init.
+        This intentionally doesn't check if the run time is already in the past - the main loop will deal with
+        that and log appropriate warnings.
+
+        Returns
+        -------
+        :class:`datetime.datetime`
+            the next run date (timezone-aware):
+        """
+
+        try:
+            return self.run_times.pop(0)
+        except IndexError as e:
+            raise StopRunning() from e
+
+    @classmethod
+    def in_one_hour(
+        cls,
+        max_trigger_count: Optional[int] = None,
+        iter_args: Optional[list] = None,
+        on_startup: bool = True,
+        autostart: bool = False,
+        error_handler: Optional[ErrorHandler] = None,
+        logger: Optional[logging.Logger] = None,
+        loop: Optional[asyncio.AbstractEventLoop] = None,
+        **kwargs,
+    ):
+        """A shortcut to create a trigger that runs one hour from the start of the main script"""
+
+        return cls(
+            run_times=datetime.datetime.now().astimezone() + datetime.timedelta(hours=1),
+            max_trigger_count=max_trigger_count,
+            iter_args=iter_args,
+            on_startup=on_startup,
+            autostart=autostart,
+            error_handler=error_handler,
+            logger=logger,
+            loop=loop,
+            **kwargs,
+        )
+
+    @classmethod
+    def in_one_day(
+        cls,
+        max_trigger_count: Optional[int] = None,
+        iter_args: Optional[list] = None,
+        on_startup: bool = True,
+        autostart: bool = False,
+        error_handler: Optional[ErrorHandler] = None,
+        logger: Optional[logging.Logger] = None,
+        loop: Optional[asyncio.AbstractEventLoop] = None,
+        **kwargs,
+    ):
+        """A shortcut to create a trigger that runs one day from the start of the main script"""
+
+        return cls(
+            run_times=datetime.datetime.now().astimezone() + datetime.timedelta(days=1),
+            max_trigger_count=max_trigger_count,
+            iter_args=iter_args,
+            on_startup=on_startup,
+            autostart=autostart,
+            error_handler=error_handler,
+            logger=logger,
+            loop=loop,
+            **kwargs,
+        )
+
+    @classmethod
+    def tomorrow(
+        cls,
+        max_trigger_count: Optional[int] = None,
+        iter_args: Optional[list] = None,
+        on_startup: bool = True,
+        autostart: bool = False,
+        error_handler: Optional[ErrorHandler] = None,
+        logger: Optional[logging.Logger] = None,
+        loop: Optional[asyncio.AbstractEventLoop] = None,
+        **kwargs,
+    ):
+        """A shortcut to create a trigger that runs at the start of the next day"""
+
+        now = datetime.datetime.now().astimezone()
+        tomorrow = (now + datetime.timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+        return cls(
+            run_times=tomorrow,
             max_trigger_count=max_trigger_count,
             iter_args=iter_args,
             on_startup=on_startup,

@@ -1,7 +1,8 @@
 import asyncio
+import datetime
 import logging
 
-from triggers import CronSchedule, CronTrigger, IntervalTrigger, StopRunning, on_error, start_triggers
+from triggers import CronSchedule, CronTrigger, IntervalTrigger, ScheduledTrigger, StopRunning, on_error, start_triggers
 
 cron = CronSchedule('0 0 * * *')
 event_loop = asyncio.get_event_loop()
@@ -58,6 +59,15 @@ async def test_exit_from_function():
 
     print('This is the only time you will see this message')
     raise StopRunning()
+
+
+@ScheduledTrigger(
+    run_times=datetime.datetime.now().astimezone() + datetime.timedelta(seconds=15), loop=event_loop, logger=_logger
+)
+async def test_scheduled_execution():
+    """This showcases the use of a scheduled trigger"""
+
+    print('This trigger will fire 15 seconds after it is initialized')
 
 
 if __name__ == '__main__':
