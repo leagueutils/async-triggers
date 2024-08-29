@@ -6,13 +6,10 @@ import warnings
 
 from abc import ABC, abstractmethod
 from traceback import format_exception
-from typing import Any, Callable, Coroutine, Optional, Union
+from typing import Any, Callable, Optional, Union
 
 from .cron import CronSchedule
-
-# async def ... function types
-CoroFunction = Callable[[], Coroutine[Any, Any, Any]]
-ErrorHandler = Callable[[str, Any, Exception], Coroutine[Any, Any, Any]]
+from .types import CoroFunction, ErrorHandler
 
 
 default_error_handler = None  # target for the @on_error() decorator

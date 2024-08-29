@@ -2,6 +2,7 @@
 
 from .cron import CronSchedule, CronParserError
 from .triggers import BaseTrigger, CronTrigger, IntervalTrigger, on_error, start_triggers
+import types
 
 __all__ = [
     'BaseTrigger',
@@ -10,5 +11,6 @@ __all__ = [
     'CronTrigger',
     'IntervalTrigger',
     'on_error',
-    'start_triggers'
+    'start_triggers',
+    'types'
 ]
