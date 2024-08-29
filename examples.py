@@ -1,7 +1,7 @@
 import asyncio
 import logging
 
-from triggers import CronSchedule, CronTrigger, IntervalTrigger, on_error, start_triggers
+from triggers import CronSchedule, CronTrigger, IntervalTrigger, StopRunning, on_error, start_triggers
 
 cron = CronSchedule('0 0 * * *')
 event_loop = asyncio.get_event_loop()
@@ -50,6 +50,14 @@ async def test_default_error_handling(divisor: int):
 
     print('We are safe' if divisor != 0 else 'Boom')
     return 2 / divisor
+
+
+@IntervalTrigger(seconds=5, loop=event_loop, logger=_logger)
+async def test_exit_from_function():
+    """This trigger showcases how to conditionally terminate the repetition from within the decorated function"""
+
+    print('This is the only time you will see this message')
+    raise StopRunning()
 
 
 if __name__ == '__main__':

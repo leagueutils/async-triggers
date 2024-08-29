@@ -5,12 +5,12 @@ import logging
 import warnings
 from abc import ABC, abstractmethod
 from traceback import format_exception
-from typing import Any, Callable, Optional, Union
+from typing import Any, Optional, Union
 
 from .cron import CronSchedule
+from .exceptions import StopRunning, get_default_handler
 from .types import CoroFunction, ErrorHandler
 
-default_error_handler = None  # target for the @on_error() decorator
 trigger_registry = []  # target for start_triggers()
 
 
@@ -66,7 +66,7 @@ class BaseTrigger(ABC):
         loop: Optional[asyncio.AbstractEventLoop] = None,
         **kwargs,
     ):
-        if not error_handler and not default_error_handler and not logger:
+        if not error_handler and not get_default_handler() and not logger:
             warnings.warn(
                 'No logger or error handler are defined. Without either of these components, any errors '
                 'raised during the trigger executions will be silently ignored. If you declared a global '
@@ -124,11 +124,22 @@ class BaseTrigger(ABC):
                             results = await asyncio.gather(*map(fixture, self.iter_args), return_exceptions=True)
 
                             # check for exceptions
+                            terminate = False
                             for arg, res in zip(self.iter_args, results):
+                                if isinstance(res, StopRunning):
+                                    terminate = True
                                 if isinstance(res, Exception):
                                     await self.__handle_exception(func, arg, res)
+                            if terminate:
+                                raise StopRunning()
                         else:
                             await fixture()
+                    except StopRunning:
+                        if self.logger:
+                            self.logger.info(
+                                f'{self.__class__.__name__} received StopRunning for {func.__name__}. Terminating'
+                            )
+                        break
                     except Exception as e:
                         await self.__handle_exception(func, None, e)
 
@@ -142,7 +153,14 @@ class BaseTrigger(ABC):
                         break
 
                     # sleep until next execution time
-                    next_run = self.next_run
+                    try:
+                        next_run = self.next_run
+                    except StopRunning:
+                        if self.logger:
+                            self.logger.info(
+                                f'{self.__class__.__name__} received StopRunning for {func.__name__}. Terminating'
+                            )
+                        break
                     if self.logger and datetime.datetime.now().astimezone() <= next_run:
                         self.logger.info(
                             f'{self.__class__.__name__} finished for {func.__name__}. Next run: {next_run.isoformat()}'
@@ -185,7 +203,7 @@ class BaseTrigger(ABC):
                 )
             )
 
-        error_handler = self.error_handler or default_error_handler
+        error_handler = self.error_handler or get_default_handler()
         if error_handler:
             await error_handler(func.__name__, arg, exc)
 
@@ -561,51 +579,6 @@ class CronTrigger(BaseTrigger):
             loop=loop,
             **kwargs,
         )
-
-
-def on_error() -> Callable[[ErrorHandler], ErrorHandler]:
-    """A decorator function that designates a function as the global fallback error handler for all exceptions
-    during trigger executions.
-
-    Notes
-    -----
-    This handler declaration should occur before any trigger declarations to avoid a RuntimeWarning about a
-    potentially undeclared error handler, though that warning can safely be ignored.
-
-    Any function decorated by this must be a coroutine and accept three parameters:
-
-        function_name: :class:`str`
-            the name of the failing trigger's decorated function
-        arg: Optional[:class:`Any`]
-            the failing `iter_args` element or None if no iter_args are defined
-        exception: :class:`Exception`
-            the exception that occurred
-
-    Returns
-    -------
-    the decorated handler function
-
-    Example
-    --------
-        @on_error()
-        async def handle_trigger_exception(function_name: str, arg: Any, exception: Exception):
-            # log the error, do some data cleanup, ...
-            pass
-
-    """
-
-    def wrapper(func: ErrorHandler):
-        # register the error handler
-        global default_error_handler
-        default_error_handler = func
-
-        @functools.wraps(func)
-        async def wrapped(function_name: str, arg: Any, error: Exception):
-            await func(function_name, arg, error)
-
-        return wrapped
-
-    return wrapper
 
 
 async def start_triggers():

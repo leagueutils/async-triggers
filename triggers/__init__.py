@@ -3,7 +3,8 @@
 import types
 
 from .cron import CronParserError, CronSchedule
-from .triggers import BaseTrigger, CronTrigger, IntervalTrigger, on_error, start_triggers
+from .exceptions import StopRunning, on_error
+from .triggers import BaseTrigger, CronTrigger, IntervalTrigger, start_triggers
 
 __all__ = [
     'BaseTrigger',
@@ -13,5 +14,6 @@ __all__ = [
     'IntervalTrigger',
     'on_error',
     'start_triggers',
+    'StopRunning',
     'types',
 ]

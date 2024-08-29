@@ -55,6 +55,12 @@ sure that your triggers won't fire early, you can set them to `autostart=True` a
 If you have a mixture of auto-started and not auto-started triggers, `start_triggers()` will only start the ones that
 aren't already running.
 
+### Stopping the Triggers
+
+If you want to conditionally stop the trigger based on something that happens in the decorated function, you can
+simply raise `triggers.StopRunning()` from the function. The trigger will catch that exception, finish processing the
+current iteration of the run and exit gracefully after.
+
 ### Error Handling
 
 The library offers two ways to deal with error handling:
@@ -119,7 +125,9 @@ The [examples.py](https://github.com/leagueutils/async-triggers/blob/main/exampl
 If you find yourself in need of scheduling logic that none of the included triggers can provide, you can easily
 create a trigger class that fits your needs by importing the `BaseTrigger` from this extension, creating a
 subclass and overwriting the `next_run`  property. The property needs to return a *timezone-aware*
-`datetime.datetime` object indicating when the trigger should run next based on the current system time.
+`datetime.datetime` object indicating when the trigger should run next based on the current system time. If you
+want to tell the trigger to stop repeating the decorated function and terminate, you can raise `triggers.StopRunning()`
+from within `next_run` as well. This will let the trigger gracefully exit without disrupting the rest of your program.
 
 
 ```python3
