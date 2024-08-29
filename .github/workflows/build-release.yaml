@@ -25,7 +25,7 @@ jobs:
       - name: Setup python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
-          cache: 'poetry'
+          cache: 'pip'
           python-version: ${{ matrix.python-version }}
 
       - name: Install poetry (1.8.3) & dependencies
