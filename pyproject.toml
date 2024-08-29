@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "async-triggers"
+name = "triggers"
 version = "1.0.0"
 description = ""
 authors = ["lukasthaler <33826427+lukasthaler@users.noreply.github.com>"]
