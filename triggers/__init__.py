@@ -1,5 +1,7 @@
 """A library that provides decorators to facilitate automated, periodic repetition of functions."""
 
+__version__ = '1.1.0'
+
 import types
 
 from .cron import CronParserError, CronSchedule

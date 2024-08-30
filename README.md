@@ -5,6 +5,10 @@ This library originated as an extension for [coc.py](https://github.com/mathsman
 off into a standalone lib because I want to use the scheduling capabilities without adding a bunch of other
 dependencies to my projects.
 
+## Changelog
+A human-readable, fairly detailed changelog can be found
+[here](https://github.com/leagueutils/async-triggers/blob/develop/CHANGELOG.md).
+
 ## Overview
 
 Repetition and scheduling are incredibly important, but often enough, you'll find yourself needing to do some simple
