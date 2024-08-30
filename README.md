@@ -15,10 +15,11 @@ It provides you with powerful and easy to use decorators that turn your coroutin
 without the need for any additional modifications. It is as simple as putting a trigger decorator on your existing
 coroutine functions. The library comes with:
 
-- two types of triggers: `IntervalTrigger`  and `CronTrigger`,
+- three types of triggers: `IntervalTrigger`, `CronTrigger` and `ScheduledTrigger`,
 - customisable error handlers for each trigger and a global `@on_error()` fallback handler,
 - extensive logging that can seamlessly be integrated with your existing logger,
-- integrated tools to apply your repeating function across an iterable, and
+- integrated tools to apply your repeating function across an iterable
+- a programmatic interface to apply triggers at run time, and
 - a framework that is easy to extend, allowing you to create your own custom triggers if you need to.
 
 ## API Reference
@@ -41,6 +42,16 @@ instantiate triggers with common patters have been provided:
 - `weekly()` implements `0 0 * * 0`, and
 - `monthly()` implements `0 0 1 * *`.
 
+### ScheduledTrigger
+
+The `ScheduledTrigger` class allows you to specify one or more *timezone-aware* `datetime.datetime` objects. The
+trigger will then execute on these times and exit once it has exhausted all of them. For convenience, this trigger
+also defines a set of class methods:
+
+- `in_one_hour()` defines a trigger that will fire exactly one hour after the trigger was initialized
+- `in_one_day()` defines a trigger that will fire exactly 24 hours after the trigger was initialized
+- `tomorrow()` defines a trigger that will fire at 00:00 on the day following the one the trigger was initialized on
+
 ### Starting the Triggers
 
 By default, triggers don't start on their own. This is because you typically want to load other resources before
@@ -54,6 +65,12 @@ you're ready to start processing. If you don't need any additional resources to 
 sure that your triggers won't fire early, you can set them to `autostart=True` and omit the call to `start_triggers()`.
 If you have a mixture of auto-started and not auto-started triggers, `start_triggers()` will only start the ones that
 aren't already running.
+
+### Stopping the Triggers
+
+If you want to conditionally stop the trigger based on something that happens in the decorated function, you can
+simply raise `triggers.StopRunning()` from the function. The trigger will catch that exception, finish processing the
+current iteration of the run and exit gracefully after.
 
 ### Error Handling
 
@@ -86,6 +103,10 @@ receive the following events:
 
 ### Other Parameters
 
+If you want the trigger to stop after a certain number of iterations, you can set the `max_trigger_count`. Once the
+trigger has been called that amount of times, it will exit. If the parameter is omitted, the trigger will repeat
+indefinitely.
+
 Triggers allow you to specify a list of elements you want the decorated function to be spread over. If you specify
 the `iter_args` parameter when initialising a trigger, it will call the decorated function once for each element of
 that parameter. Each element will be positionally passed into the function's first argument. If you prefer to keep
@@ -106,16 +127,25 @@ the current event loop will be used.
 You can also specify additional key word arguments (`**kwargs`). Any extra arguments will be passed to the decorated
 function as key word arguments on each call.
 
+### Programmatic Interface
+
+If you need more flexible scheduling/triggering at runtime, you can use `triggers.apply_trigger()`. It takes a
+coroutine as its first parameter and a trigger instance as its second, and schedules the coroutine to be executed
+according to the trigger's defined run times. The behaviour is exactly as in the decorator  case.
+
 ### Examples
-The [examples.py](https://github.com/leagueutils/async-triggers/blob/main/examples.py) file has usage examples
+The [examples](https://github.com/leagueutils/async-triggers/tree/develop/examples) folder has usage examples for
+both the decorator variant and the programmatic application of triggers.
 
 
-### Extending this Extension
+### Extending this Library
 
 If you find yourself in need of scheduling logic that none of the included triggers can provide, you can easily
 create a trigger class that fits your needs by importing the `BaseTrigger` from this extension, creating a
 subclass and overwriting the `next_run`  property. The property needs to return a *timezone-aware*
-`datetime.datetime` object indicating when the trigger should run next based on the current system time.
+`datetime.datetime` object indicating when the trigger should run next based on the current system time. If you
+want to tell the trigger to stop repeating the decorated function and terminate, you can raise `triggers.StopRunning()`
+from within `next_run` as well. This will let the trigger gracefully exit without disrupting the rest of your program.
 
 
 ```python3
@@ -127,20 +157,23 @@ from triggers import BaseTrigger, types
 from typing import Optional
 
 class RandomTrigger(BaseTrigger):
-   def __init__(self,
-                *,  # disable positional arguments
-                min_seconds: int,
-                max_seconds: int,
-                iter_args: Optional[list] = None,
-                on_startup: bool = True,
-                autostart: bool = False,
-                error_handler: Optional[types.CoroFunction] = None,
-                logger: Optional[logging.Logger] = None,
-                loop: Optional[asyncio.AbstractEventLoop] = None,
-                **kwargs):
+   def __init__(
+           self,
+           *,  # disable positional arguments
+           min_seconds: int,
+           max_seconds: int,
+           max_trigger_count: Optional[int] = None,
+           iter_args: Optional[list] = None,
+           on_startup: bool = True,
+           autostart: bool = False,
+           error_handler: Optional[types.CoroFunction] = None,
+           logger: Optional[logging.Logger] = None,
+           loop: Optional[asyncio.AbstractEventLoop] = None,
+           **kwargs
+   ):
 
-       super().__init__(iter_args=iter_args, on_startup=on_startup, autostart=autostart,
-                        error_handler=error_handler, logger=logger, loop=loop, **kwargs)
+       super().__init__(max_trigger_count=max_trigger_count, iter_args=iter_args, on_startup=on_startup,
+                        autostart=autostart, error_handler=error_handler, logger=logger, loop=loop, **kwargs)
        self.min_seconds = min_seconds
        self.max_seconds = max_seconds
 

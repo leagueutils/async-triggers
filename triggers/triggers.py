@@ -5,12 +5,12 @@ import logging
 import warnings
 from abc import ABC, abstractmethod
 from traceback import format_exception
-from typing import Any, Callable, Optional, Union
+from typing import Any, List, Optional, Union
 
 from .cron import CronSchedule
+from .exceptions import StopRunning, get_default_handler
 from .types import CoroFunction, ErrorHandler
 
-default_error_handler = None  # target for the @on_error() decorator
 trigger_registry = []  # target for start_triggers()
 
 
@@ -20,6 +20,10 @@ class BaseTrigger(ABC):
     it cannot be instantiated. Any subclasses have to implement the `next_run` property
 
     Arguments:
+
+    max_trigger_count:
+        an optional integer. If specified, the trigger will exit after it has been called that many times.
+        If omitted, the trigger will repeat indefinitely
 
     iter_args:
         an optional list of arguments. The decorated function will be called once per list element,
@@ -53,6 +57,7 @@ class BaseTrigger(ABC):
     def __init__(
         self,
         *,  # disable positional arguments
+        max_trigger_count: Optional[int] = None,
         iter_args: Optional[list] = None,
         on_startup: Optional[bool] = True,
         autostart: bool = False,
@@ -61,7 +66,7 @@ class BaseTrigger(ABC):
         loop: Optional[asyncio.AbstractEventLoop] = None,
         **kwargs,
     ):
-        if not error_handler and not default_error_handler and not logger:
+        if not error_handler and not get_default_handler() and not logger:
             warnings.warn(
                 'No logger or error handler are defined. Without either of these components, any errors '
                 'raised during the trigger executions will be silently ignored. If you declared a global '
@@ -78,7 +83,9 @@ class BaseTrigger(ABC):
         self.logger = logger
         self.loop = loop or asyncio.get_event_loop()
         self.kwargs = kwargs
+        self.max_trigger_count = max_trigger_count
 
+        self._trigger_count = 0
         self.task = None  # placeholder for the repeat task created in self.__wrapper
 
     def __call__(self, func: CoroFunction):
@@ -108,22 +115,52 @@ class BaseTrigger(ABC):
                     if self.logger:
                         self.logger.info(f'Running {self.__class__.__name__} for {func.__name__}')
 
+                    if self.max_trigger_count is not None:
+                        self._trigger_count += 1
+
                     # call the decorated function
                     try:
                         if self.iter_args:
                             results = await asyncio.gather(*map(fixture, self.iter_args), return_exceptions=True)
 
                             # check for exceptions
+                            terminate = False
                             for arg, res in zip(self.iter_args, results):
+                                if isinstance(res, StopRunning):
+                                    terminate = True
                                 if isinstance(res, Exception):
                                     await self.__handle_exception(func, arg, res)
+                            if terminate:
+                                raise StopRunning()
                         else:
                             await fixture()
+                    except StopRunning:
+                        if self.logger:
+                            self.logger.info(
+                                f'{self.__class__.__name__} received StopRunning for {func.__name__}. Terminating'
+                            )
+                        break
                     except Exception as e:
                         await self.__handle_exception(func, None, e)
 
+                    # stop after the maximum number of triggers has been reached
+                    if self.max_trigger_count is not None and self._trigger_count >= self.max_trigger_count:
+                        if self.logger:
+                            self.logger.info(
+                                f'{self.__class__.__name__} has reached the execution limit of {self.max_trigger_count}'
+                                f' executions for {func.__name__}. Terminating'
+                            )
+                        break
+
                     # sleep until next execution time
-                    next_run = self.next_run
+                    try:
+                        next_run = self.next_run
+                    except StopRunning:
+                        if self.logger:
+                            self.logger.info(
+                                f'{self.__class__.__name__} received StopRunning for {func.__name__}. Terminating'
+                            )
+                        break
                     if self.logger and datetime.datetime.now().astimezone() <= next_run:
                         self.logger.info(
                             f'{self.__class__.__name__} finished for {func.__name__}. Next run: {next_run.isoformat()}'
@@ -166,7 +203,7 @@ class BaseTrigger(ABC):
                 )
             )
 
-        error_handler = self.error_handler or default_error_handler
+        error_handler = self.error_handler or get_default_handler()
         if error_handler:
             await error_handler(func.__name__, arg, exc)
 
@@ -181,8 +218,8 @@ class BaseTrigger(ABC):
 
     @property
     @abstractmethod
-    def next_run(self) -> datetime:
-        """Calculate the date and time of the next run. Needs to be overwritten in subclasses"""
+    def next_run(self) -> datetime.datetime:
+        """Calculate the date and time (timezone-aware) of the next run. Needs to be overwritten in subclasses"""
         raise NotImplementedError('All `BaseTrigger` subclasses need to implement `next_run`')
 
 
@@ -195,6 +232,10 @@ class IntervalTrigger(BaseTrigger):
 
     seconds:
         how many seconds to wait between trigger runs
+
+    max_trigger_count:
+        an optional integer. If specified, the trigger will exit after it has been called that many times.
+        If omitted, the trigger will repeat indefinitely
 
     iter_args:
         an optional list of arguments. The decorated function will be called once per list element,
@@ -243,6 +284,7 @@ class IntervalTrigger(BaseTrigger):
         self,
         *,  # disable positional arguments
         seconds: int,
+        max_trigger_count: Optional[int] = None,
         iter_args: Optional[list] = None,
         on_startup: bool = True,
         autostart: bool = False,
@@ -252,6 +294,7 @@ class IntervalTrigger(BaseTrigger):
         **kwargs,
     ):
         super().__init__(
+            max_trigger_count=max_trigger_count,
             iter_args=iter_args,
             on_startup=on_startup,
             autostart=autostart,
@@ -269,7 +312,7 @@ class IntervalTrigger(BaseTrigger):
         return f'triggers.IntervalTrigger(seconds={self._interval_seconds})'
 
     @property
-    def next_run(self) -> datetime:
+    def next_run(self) -> datetime.datetime:
         """Calculate the date and time of the next run based on the current time and the defined interval
 
         :returns: the next run date (timezone-aware)
@@ -280,6 +323,7 @@ class IntervalTrigger(BaseTrigger):
     @classmethod
     def hourly(
         cls,
+        max_trigger_count: Optional[int] = None,
         iter_args: Optional[list] = None,
         on_startup: bool = True,
         autostart: bool = False,
@@ -292,6 +336,7 @@ class IntervalTrigger(BaseTrigger):
 
         return cls(
             seconds=3600,
+            max_trigger_count=max_trigger_count,
             iter_args=iter_args,
             on_startup=on_startup,
             autostart=autostart,
@@ -304,6 +349,7 @@ class IntervalTrigger(BaseTrigger):
     @classmethod
     def daily(
         cls,
+        max_trigger_count: Optional[int] = None,
         iter_args: Optional[list] = None,
         on_startup: bool = True,
         autostart: bool = False,
@@ -316,6 +362,7 @@ class IntervalTrigger(BaseTrigger):
 
         return cls(
             seconds=86400,
+            max_trigger_count=max_trigger_count,
             iter_args=iter_args,
             on_startup=on_startup,
             autostart=autostart,
@@ -335,6 +382,10 @@ class CronTrigger(BaseTrigger):
 
     cron_schedule:
         the Cron schedule to follow
+
+    max_trigger_count:
+        an optional integer. If specified, the trigger will exit after it has been called that many times.
+        If omitted, the trigger will repeat indefinitely
 
     iter_args:
         an optional list of arguments. The decorated function will be called once per list element,
@@ -384,6 +435,7 @@ class CronTrigger(BaseTrigger):
         self,
         *,  # disable positional arguments
         cron_schedule: Union[CronSchedule, str],
+        max_trigger_count: Optional[int] = None,
         iter_args: Optional[list] = None,
         on_startup: bool = True,
         autostart: bool = False,
@@ -393,6 +445,7 @@ class CronTrigger(BaseTrigger):
         **kwargs,
     ):
         super().__init__(
+            max_trigger_count=max_trigger_count,
             iter_args=iter_args,
             on_startup=on_startup,
             autostart=autostart,
@@ -410,13 +463,10 @@ class CronTrigger(BaseTrigger):
         return f'triggers.CronTrigger(cron_schedule="{self.cron_schedule.cron_str}")'
 
     @property
-    def next_run(self) -> datetime:
+    def next_run(self) -> datetime.datetime:
         """Calculate the date and time of the next run based on the current time and the defined Cron schedule
 
-        Returns
-        -------
-        :class:`datetime.datetime`
-            the next run date (timezone-aware):
+        :returns: the next run date (timezone-aware)
         """
 
         # prevent multiple runs in one minute
@@ -426,6 +476,7 @@ class CronTrigger(BaseTrigger):
     @classmethod
     def hourly(
         cls,
+        max_trigger_count: Optional[int] = None,
         iter_args: Optional[list] = None,
         on_startup: bool = True,
         autostart: bool = False,
@@ -438,6 +489,7 @@ class CronTrigger(BaseTrigger):
 
         return cls(
             cron_schedule='0 * * * *',
+            max_trigger_count=max_trigger_count,
             iter_args=iter_args,
             on_startup=on_startup,
             autostart=autostart,
@@ -450,6 +502,7 @@ class CronTrigger(BaseTrigger):
     @classmethod
     def daily(
         cls,
+        max_trigger_count: Optional[int] = None,
         iter_args: Optional[list] = None,
         on_startup: bool = True,
         autostart: bool = False,
@@ -462,6 +515,7 @@ class CronTrigger(BaseTrigger):
 
         return cls(
             cron_schedule='0 0 * * *',
+            max_trigger_count=max_trigger_count,
             iter_args=iter_args,
             on_startup=on_startup,
             autostart=autostart,
@@ -474,6 +528,7 @@ class CronTrigger(BaseTrigger):
     @classmethod
     def weekly(
         cls,
+        max_trigger_count: Optional[int] = None,
         iter_args: Optional[list] = None,
         on_startup: bool = True,
         autostart: bool = False,
@@ -486,6 +541,7 @@ class CronTrigger(BaseTrigger):
 
         return cls(
             cron_schedule='0 0 * * 0',
+            max_trigger_count=max_trigger_count,
             iter_args=iter_args,
             on_startup=on_startup,
             autostart=autostart,
@@ -498,6 +554,7 @@ class CronTrigger(BaseTrigger):
     @classmethod
     def monthly(
         cls,
+        max_trigger_count: Optional[int] = None,
         iter_args: Optional[list] = None,
         on_startup: bool = True,
         autostart: bool = False,
@@ -510,6 +567,7 @@ class CronTrigger(BaseTrigger):
 
         return cls(
             cron_schedule='0 0 1 * *',
+            max_trigger_count=max_trigger_count,
             iter_args=iter_args,
             on_startup=on_startup,
             autostart=autostart,
@@ -520,49 +578,186 @@ class CronTrigger(BaseTrigger):
         )
 
 
-def on_error() -> Callable[[ErrorHandler], ErrorHandler]:
-    """A decorator function that designates a function as the global fallback error handler for all exceptions
-    during trigger executions.
+class ScheduledTrigger(BaseTrigger):
+    """
+    A decorator class to repeat a function at specified times
 
-    Notes
-    -----
-    This handler declaration should occur before any trigger declarations to avoid a RuntimeWarning about a
-    potentially undeclared error handler, though that warning can safely be ignored.
+    Attributes
+    ----------
 
-    Any function decorated by this must be a coroutine and accept three parameters:
+    run_times:
+        one or more timezone-aware `datetime.datetime`s when the trigger should run
 
-        function_name: :class:`str`
-            the name of the failing trigger's decorated function
-        arg: Optional[:class:`Any`]
-            the failing `iter_args` element or None if no iter_args are defined
-        exception: :class:`Exception`
-            the exception that occurred
+    max_trigger_count:
+        an optional integer. If specified, the trigger will exit after it has been called that many times.
+        If omitted, the trigger will repeat indefinitely
 
-    Returns
-    -------
-    the decorated handler function
+    iter_args:
+        an optional list of arguments. The decorated function will be called once per list element,
+        and the element will be passed to the decorated function as the first positional argument. If
+        no iter_args are defined, nothing (especially not `None`) will be injected into the decorated function
+
+    on_startup:
+        whether to trigger a run of the decorated function on startup. Defaults to `True`
+
+    autostart:
+        whether to automatically start the trigger. Auto-starting it may cause required components to not
+        have fully loaded and initialized. If you choose to disable autostart (which is the default),
+        you can use `triggers.start_triggers()` to manually kick the trigger execution off once you
+        have loaded all required resources
+
+    error_handler:
+        an optional coroutine function that will be called on each error incurred during the trigger execution.
+        The handler will receive three arguments:
+
+            function_name: str
+                the name of the failing trigger's decorated function
+            arg: Optional[Any]
+                the failing `iter_args` element or None if no iter_args are defined
+            exception: Exception
+                the exception that occurred
+
+    logger:
+        an optional logger instance implementing the logging.Logger functionality. Debug, warning and error logs
+        about the trigger execution will be sent to this logger
+
+    loop:
+        an optional event loop that the trigger execution will be appended to. If no loop is provided,
+        the trigger will provision one using `asyncio.get_event_loop()`
+
+    kwargs:
+        any additional keyword arguments that will be passed to the decorated function every time it is called
 
     Example
-    --------
-        @on_error()
-        async def handle_trigger_exception(function_name: str, arg: Any, exception: Exception):
-            # log the error, do some data cleanup, ...
-            pass
+    -------
 
+        @ScheduledTrigger(run_times=datetime.datetime(2025, 1, 1).astimezone(), iter_args=['Foo', 'Bar'])
+        async def do_something(an_argument):
+            print(f'The argument is {an_argument}')
     """
 
-    def wrapper(func: ErrorHandler):
-        # register the error handler
-        global default_error_handler
-        default_error_handler = func
+    def __init__(
+        self,
+        *,  # disable positional arguments
+        run_times: Union[datetime.datetime, List[datetime.datetime]],
+        max_trigger_count: Optional[int] = None,
+        iter_args: Optional[list] = None,
+        on_startup: bool = False,
+        autostart: bool = False,
+        error_handler: Optional[ErrorHandler] = None,
+        logger: Optional[logging.Logger] = None,
+        loop: Optional[asyncio.AbstractEventLoop] = None,
+        **kwargs,
+    ):
+        super().__init__(
+            max_trigger_count=max_trigger_count,
+            iter_args=iter_args,
+            on_startup=on_startup,
+            autostart=autostart,
+            error_handler=error_handler,
+            logger=logger,
+            loop=loop,
+            **kwargs,
+        )
 
-        @functools.wraps(func)
-        async def wrapped(function_name: str, arg: Any, error: Exception):
-            await func(function_name, arg, error)
+        if isinstance(run_times, datetime.datetime):
+            self.run_times = [run_times]
+        else:
+            self.run_times = sorted(run_times)
 
-        return wrapped
+    @property
+    def next_run(self) -> datetime.datetime:
+        """Return the next scheduled run time from the list defined during init.
+        This intentionally doesn't check if the run time is already in the past - the main loop will deal with
+        that and log appropriate warnings.
 
-    return wrapper
+        :returns: the next run date (timezone-aware)
+        """
+
+        try:
+            return self.run_times.pop(0)
+        except IndexError as e:
+            raise StopRunning() from e
+
+    @classmethod
+    def in_one_hour(
+        cls,
+        max_trigger_count: Optional[int] = None,
+        iter_args: Optional[list] = None,
+        on_startup: bool = True,
+        autostart: bool = False,
+        error_handler: Optional[ErrorHandler] = None,
+        logger: Optional[logging.Logger] = None,
+        loop: Optional[asyncio.AbstractEventLoop] = None,
+        **kwargs,
+    ):
+        """A shortcut to create a trigger that runs one hour from the start of the main script"""
+
+        return cls(
+            run_times=datetime.datetime.now().astimezone() + datetime.timedelta(hours=1),
+            max_trigger_count=max_trigger_count,
+            iter_args=iter_args,
+            on_startup=on_startup,
+            autostart=autostart,
+            error_handler=error_handler,
+            logger=logger,
+            loop=loop,
+            **kwargs,
+        )
+
+    @classmethod
+    def in_one_day(
+        cls,
+        max_trigger_count: Optional[int] = None,
+        iter_args: Optional[list] = None,
+        on_startup: bool = True,
+        autostart: bool = False,
+        error_handler: Optional[ErrorHandler] = None,
+        logger: Optional[logging.Logger] = None,
+        loop: Optional[asyncio.AbstractEventLoop] = None,
+        **kwargs,
+    ):
+        """A shortcut to create a trigger that runs one day from the start of the main script"""
+
+        return cls(
+            run_times=datetime.datetime.now().astimezone() + datetime.timedelta(days=1),
+            max_trigger_count=max_trigger_count,
+            iter_args=iter_args,
+            on_startup=on_startup,
+            autostart=autostart,
+            error_handler=error_handler,
+            logger=logger,
+            loop=loop,
+            **kwargs,
+        )
+
+    @classmethod
+    def tomorrow(
+        cls,
+        max_trigger_count: Optional[int] = None,
+        iter_args: Optional[list] = None,
+        on_startup: bool = True,
+        autostart: bool = False,
+        error_handler: Optional[ErrorHandler] = None,
+        logger: Optional[logging.Logger] = None,
+        loop: Optional[asyncio.AbstractEventLoop] = None,
+        **kwargs,
+    ):
+        """A shortcut to create a trigger that runs at the start of the next day"""
+
+        now = datetime.datetime.now().astimezone()
+        tomorrow = (now + datetime.timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+        return cls(
+            run_times=tomorrow,
+            max_trigger_count=max_trigger_count,
+            iter_args=iter_args,
+            on_startup=on_startup,
+            autostart=autostart,
+            error_handler=error_handler,
+            logger=logger,
+            loop=loop,
+            **kwargs,
+        )
 
 
 async def start_triggers():
@@ -588,3 +783,19 @@ async def start_triggers():
 
     tasks = [asyncio.create_task(trigger) for trigger in trigger_registry]
     return await asyncio.gather(*tasks)
+
+
+def apply_trigger(func: CoroFunction, trigger: BaseTrigger):
+    """Interface function to programmatically apply a trigger to a coroutine
+    :param func: the function you want to run on the trigger's schedule
+    :param trigger: the trigger you want to apply to your function
+
+    Example
+    -------
+        async def target_function():
+            print('I was called')
+        trigger = IntervalTrigger(seconds=10, max_trigger_count=5)
+        apply_trigger(target_function, trigger)
+    """
+
+    trigger(func)
