@@ -50,4 +50,4 @@ jobs:
       - name: Merge release into main
         run: |
           gh_pr_up() { gh pr create $* || gh pr edit $* }
-          gh_pr_up --title "Merge ${{ github.ref_name }} into main" --base main
+          gh_pr_up --title "Merge ${{ github.ref_name }} into main" --body "" --base main
