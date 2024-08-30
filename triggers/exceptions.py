@@ -7,7 +7,7 @@ default_error_handler: Optional[ErrorHandler] = None  # target for the @on_error
 
 
 class StopRunning(Exception):
-    """an exception that signals to the trigger that it should stop repeating the decorated function"""
+    """An exception that signals to the trigger that it should stop repeating the decorated function"""
 
     pass
 
@@ -15,6 +15,8 @@ class StopRunning(Exception):
 def on_error() -> Callable[[ErrorHandler], ErrorHandler]:
     """A decorator function that designates a function as the global fallback error handler for all exceptions
     during trigger executions.
+
+    :returns: the decorated handler function
 
     Notes
     -----
@@ -29,10 +31,6 @@ def on_error() -> Callable[[ErrorHandler], ErrorHandler]:
             the failing `iter_args` element or None if no iter_args are defined
         exception: :class:`Exception`
             the exception that occurred
-
-    Returns
-    -------
-    the decorated handler function
 
     Example
     --------
@@ -58,4 +56,8 @@ def on_error() -> Callable[[ErrorHandler], ErrorHandler]:
 
 
 def get_default_handler():
+    """Utility function to get the default error handler defined in this file. If default_error_handler were
+    imported directly, it would always be None, no matter what assignments happen later
+    """
+
     return default_error_handler

@@ -218,8 +218,8 @@ class BaseTrigger(ABC):
 
     @property
     @abstractmethod
-    def next_run(self) -> datetime:
-        """Calculate the date and time of the next run. Needs to be overwritten in subclasses"""
+    def next_run(self) -> datetime.datetime:
+        """Calculate the date and time (timezone-aware) of the next run. Needs to be overwritten in subclasses"""
         raise NotImplementedError('All `BaseTrigger` subclasses need to implement `next_run`')
 
 
@@ -312,7 +312,7 @@ class IntervalTrigger(BaseTrigger):
         return f'triggers.IntervalTrigger(seconds={self._interval_seconds})'
 
     @property
-    def next_run(self) -> datetime:
+    def next_run(self) -> datetime.datetime:
         """Calculate the date and time of the next run based on the current time and the defined interval
 
         :returns: the next run date (timezone-aware)
@@ -463,13 +463,10 @@ class CronTrigger(BaseTrigger):
         return f'triggers.CronTrigger(cron_schedule="{self.cron_schedule.cron_str}")'
 
     @property
-    def next_run(self) -> datetime:
+    def next_run(self) -> datetime.datetime:
         """Calculate the date and time of the next run based on the current time and the defined Cron schedule
 
-        Returns
-        -------
-        :class:`datetime.datetime`
-            the next run date (timezone-aware):
+        :returns: the next run date (timezone-aware)
         """
 
         # prevent multiple runs in one minute
@@ -669,15 +666,12 @@ class ScheduledTrigger(BaseTrigger):
             self.run_times = sorted(run_times)
 
     @property
-    def next_run(self) -> datetime:
+    def next_run(self) -> datetime.datetime:
         """Return the next scheduled run time from the list defined during init.
         This intentionally doesn't check if the run time is already in the past - the main loop will deal with
         that and log appropriate warnings.
 
-        Returns
-        -------
-        :class:`datetime.datetime`
-            the next run date (timezone-aware):
+        :returns: the next run date (timezone-aware)
         """
 
         try:

@@ -1,7 +1,7 @@
+import datetime
 import warnings
 from calendar import monthrange
 from collections import namedtuple
-from datetime import datetime, timedelta
 from typing import Any, List, Tuple
 
 LIMITS = [[0, 59], [0, 23], [1, 31], [1, 12], [0, 6]]
@@ -21,10 +21,7 @@ class CronSchedule:
     i.e. minute, hour, day of month, month, day of week with list, range and increment modifiers.
     Name aliases for weekdays or months (e.g. Mon, Tue, ... and Jan, Feb, ...) are not supported
 
-    Attributes
-    ----------
-    cron_str: :class:`str`
-        the string representation of the Cron schedule
+    :param cron_str: the string representation of the Cron schedule
 
     Examples
     --------
@@ -62,7 +59,7 @@ class CronSchedule:
     def __str__(self) -> str:
         return self.cron_str
 
-    def __eq__(self, other: Any):
+    def __eq__(self, other: Any) -> bool:
         # two Cron schedules can be considered equal if they allow the same values
         # i.e. Cron('0 0 * * *') == Cron('0 0 1-31 * *')
         return self.__class__ == other.__class__ and self.allowed_values == other.allowed_values
@@ -106,14 +103,17 @@ class CronSchedule:
     @staticmethod
     def __next_allowed_val(value: int, allowed_values: List[int]) -> Tuple[int, bool]:
         """Get the next allowed value from a list of choices and indicate if the list has overflown,
-        i.e. whether the next value needs to be incremented"""
+        i.e. whether the next value needs to be incremented
+        """
 
         for val in allowed_values:
             if val >= value:
                 return val, False
         return allowed_values[0], True
 
-    def __determine_day(self, reference_date: datetime, dow: int, dow_overflow: bool, dom: int, dom_overflow: bool):
+    def __determine_day(
+        self, reference_date: datetime.datetime, dow: int, dow_overflow: bool, dom: int, dom_overflow: bool
+    ):
         """Solve the OR-relation between day of month and day of week, returning whichever is smaller"""
 
         # translate day of week into its equivalent day of month
@@ -141,18 +141,12 @@ class CronSchedule:
         else:
             return dom, dom_overflow
 
-    def next_run_after(self, after: datetime) -> datetime:
+    def next_run_after(self, after: datetime.datetime) -> datetime.datetime:
         """Calculate the next run time of the Cron schedule after a given reference datetime
-        Parameters
-        ----------
-        after: :class:`datetime.datetime`
-            the reference datetime
+        :param after: the reference datetime
 
-        Returns
-        -------
-        The next run time after the reference datetime for the Cron schedule: :class:`datetime.datetime`.
-        If the input datetime was timezone-aware, the return will also be. If the input was timezone-naive,
-        so will the return be
+        :returns: the next run time after the reference datetime for the Cron schedule. If the input datetime was
+        timezone-aware, the return will also be. If the input was timezone-naive, so will the return be
         """
 
         # construct timezone-aware representation of after
@@ -164,7 +158,7 @@ class CronSchedule:
                 category=RuntimeWarning,
                 stacklevel=2,
             )
-            after = after.replace(tzinfo=datetime.now().astimezone().tzinfo)
+            after = after.replace(tzinfo=datetime.datetime.now().astimezone().tzinfo)
 
         now_parts = CronParts(after.minute, after.hour, after.day, after.month, after.isoweekday())
 
@@ -202,22 +196,23 @@ class CronSchedule:
             next_hour = self.allowed_values.hour[0]
             next_dom = self.allowed_values.day_of_month[0]
             next_dow = (monthrange(next_year, next_month)[0] + 1) % 7  # ISO weekday of the next month's first day
-            ref = (after.replace(day=1) + timedelta(days=32)).replace(day=1)
+            ref = (after.replace(day=1) + datetime.timedelta(days=32)).replace(day=1)
             next_day, _ = self.__determine_day(ref, next_dow, dow_overflow, next_dom, dom_overflow)
 
         if tz_naive:
-            return datetime(year=next_year, month=next_month, day=next_day, hour=next_hour, minute=next_minute)
-        return datetime(
+            return datetime.datetime(year=next_year, month=next_month, day=next_day, hour=next_hour, minute=next_minute)
+        return datetime.datetime(
             year=next_year, month=next_month, day=next_day, hour=next_hour, minute=next_minute, tzinfo=after.tzinfo
         )
 
     @property
     def next_run(self) -> datetime:
         """The next run time for this Cron schedule
-        Returns
-        -------
-        the next run time for this Cron schedule: :class:`datetime.datetime`
-        NOTE: the return value will always be timezone-AWARE
+        :returns: the next run time for this Cron schedule
+
+        Note
+        ----
+        The return value will always be timezone-AWARE
         """
 
-        return self.next_run_after(datetime.now().astimezone())
+        return self.next_run_after(datetime.datetime.now().astimezone())
