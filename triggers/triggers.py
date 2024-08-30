@@ -783,3 +783,19 @@ async def start_triggers():
 
     tasks = [asyncio.create_task(trigger) for trigger in trigger_registry]
     return await asyncio.gather(*tasks)
+
+
+def apply_trigger(func: CoroFunction, trigger: BaseTrigger):
+    """Interface function to programmatically apply a trigger to a coroutine
+    :param func: the function you want to run on the trigger's schedule
+    :param trigger: the trigger you want to apply to your function
+
+    Example
+    -------
+        async def target_function():
+            print('I was called')
+        trigger = IntervalTrigger(seconds=10, max_trigger_count=5)
+        apply_trigger(target_function, trigger)
+    """
+
+    trigger(func)

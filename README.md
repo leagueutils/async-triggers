@@ -18,7 +18,8 @@ coroutine functions. The library comes with:
 - three types of triggers: `IntervalTrigger`, `CronTrigger` and `ScheduledTrigger`,
 - customisable error handlers for each trigger and a global `@on_error()` fallback handler,
 - extensive logging that can seamlessly be integrated with your existing logger,
-- integrated tools to apply your repeating function across an iterable, and
+- integrated tools to apply your repeating function across an iterable
+- a programmatic interface to apply triggers at run time, and
 - a framework that is easy to extend, allowing you to create your own custom triggers if you need to.
 
 ## API Reference
@@ -126,11 +127,18 @@ the current event loop will be used.
 You can also specify additional key word arguments (`**kwargs`). Any extra arguments will be passed to the decorated
 function as key word arguments on each call.
 
+### Programmatic Interface
+
+If you need more flexible scheduling/triggering at runtime, you can use `triggers.apply_trigger()`. It takes a
+coroutine as its first parameter and a trigger instance as its second, and schedules the coroutine to be executed
+according to the trigger's defined run times. The behaviour is exactly as in the decorator  case.
+
 ### Examples
-The [examples.py](https://github.com/leagueutils/async-triggers/blob/main/examples.py) file has usage examples
+The [examples](https://github.com/leagueutils/async-triggers/tree/develop/examples) folder has usage examples for
+both the decorator variant and the programmatic application of triggers.
 
 
-### Extending this Extension
+### Extending this Library
 
 If you find yourself in need of scheduling logic that none of the included triggers can provide, you can easily
 create a trigger class that fits your needs by importing the `BaseTrigger` from this extension, creating a
