@@ -642,7 +642,7 @@ class ScheduledTrigger(BaseTrigger):
         run_times: Union[datetime.datetime, List[datetime.datetime]],
         max_trigger_count: Optional[int] = None,
         iter_args: Optional[list] = None,
-        on_startup: bool = True,
+        on_startup: bool = False,
         autostart: bool = False,
         error_handler: Optional[ErrorHandler] = None,
         logger: Optional[logging.Logger] = None,
