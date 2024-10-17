@@ -74,7 +74,9 @@ aren't already running.
 
 If you want to conditionally stop the trigger based on something that happens in the decorated function, you can
 simply raise `triggers.StopRunning()` from the function. The trigger will catch that exception, finish processing the
-current iteration of the run and exit gracefully after.
+current iteration of the run and exit gracefully after. If you want to stop the trigger after executing a fixed
+number of times, supply the `max_trigger_count` argument during trigger initialization. The trigger will automatically
+and gracefully exit after performing the desired number of executions.
 
 ### Error Handling
 
@@ -83,7 +85,7 @@ The library offers two ways to deal with error handling:
 - passing a handler function directly to the trigger's `error_handler` parameter. This allows you to specify
   individual error handlers for each repeated task if you need to.
 - designating a global error handler by decorating a function with `on_error()`. This will be used
-  as a fallback by all triggers that don't have a dedicated error handler passed to them during initialisation.
+  as a fallback by all triggers that don't have a dedicated error handler passed to them during initialization.
 
 An error handler function must be defined with `async def` and accept three parameters in the following order:
 
@@ -112,7 +114,7 @@ trigger has been called that amount of times, it will exit. If the parameter is 
 indefinitely.
 
 Triggers allow you to specify a list of elements you want the decorated function to be spread over. If you specify
-the `iter_args` parameter when initialising a trigger, it will call the decorated function once for each element of
+the `iter_args` parameter when initializing a trigger, it will call the decorated function once for each element of
 that parameter. Each element will be positionally passed into the function's first argument. If you prefer to keep
 your logic inside the function or load it from somewhere else, simply don't pass the `iter_args` parameter. That will
 let the trigger know not to inject any positional args.
@@ -145,7 +147,7 @@ both the decorator variant and the programmatic application of triggers.
 ### Extending this Library
 
 If you find yourself in need of scheduling logic that none of the included triggers can provide, you can easily
-create a trigger class that fits your needs by importing the `BaseTrigger` from this extension, creating a
+create a trigger class that fits your needs by importing the `BaseTrigger` from this library, creating a
 subclass and overwriting the `next_run`  property. The property needs to return a *timezone-aware*
 `datetime.datetime` object indicating when the trigger should run next based on the current system time. If you
 want to tell the trigger to stop repeating the decorated function and terminate, you can raise `triggers.StopRunning()`

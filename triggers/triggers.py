@@ -128,7 +128,7 @@ class BaseTrigger(ABC):
                             for arg, res in zip(self.iter_args, results):
                                 if isinstance(res, StopRunning):
                                     terminate = True
-                                if isinstance(res, Exception):
+                                elif isinstance(res, Exception):
                                     await self.__handle_exception(func, arg, res)
                             if terminate:
                                 raise StopRunning()
