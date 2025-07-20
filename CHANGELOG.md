@@ -3,6 +3,9 @@
 This page contains a fairly detailed, fairly complete, fairly readable summary of what changed with each version of the
 library.
 
+## v1.1.2
+Added an extra safeguard to prevent triggers from executing earlier than they were supposed to
+
 ## v1.1.1
 Fixed a behaviour where if a trigger with `iter_args` was stopped by raising `triggers.StopRunning()`, the error handler
 would be invoked.
