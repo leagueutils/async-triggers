@@ -206,7 +206,7 @@ class CronSchedule:
         )
 
     @property
-    def next_run(self) -> datetime:
+    def next_run(self) -> datetime.datetime:
         """The next run time for this Cron schedule
         :returns: the next run time for this Cron schedule
 

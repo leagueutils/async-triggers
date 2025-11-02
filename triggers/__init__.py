@@ -1,6 +1,6 @@
 """A library that provides decorators to facilitate automated, periodic repetition of functions."""
 
-__version__ = '1.1.2'
+__version__ = '1.1.3'
 
 import types
 
