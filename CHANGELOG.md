@@ -3,6 +3,10 @@
 This page contains a fairly detailed, fairly complete, fairly readable summary of what changed with each version of the
 library.
 
+## v1.1.3
+Fixed an edge case where a `CronSchedule`'s predicted next date was one week too late if the next date crossed both a
+week and month boundary and corrected the type hint for `CronSchedule.next_run`
+
 ## v1.1.2
 Added an extra safeguard to prevent triggers from executing earlier than they were supposed to
 

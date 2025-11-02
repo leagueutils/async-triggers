@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "triggers"
-version = "1.1.2"
+version = "1.1.3"
 description = ""
 authors = ["lukasthaler <33826427+lukasthaler@users.noreply.github.com>"]
 readme = "README.md"
