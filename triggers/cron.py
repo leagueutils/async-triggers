@@ -197,7 +197,7 @@ class CronSchedule:
             next_dom = self.allowed_values.day_of_month[0]
             next_dow = (monthrange(next_year, next_month)[0] + 1) % 7  # ISO weekday of the next month's first day
             ref = (after.replace(day=1) + datetime.timedelta(days=32)).replace(day=1)
-            next_day, _ = self.__determine_day(ref, next_dow, dow_overflow, next_dom, dom_overflow)
+            next_day, _ = self.__determine_day(ref, next_dow, False, next_dom, False)
 
         if tz_naive:
             return datetime.datetime(year=next_year, month=next_month, day=next_day, hour=next_hour, minute=next_minute)
@@ -206,7 +206,7 @@ class CronSchedule:
         )
 
     @property
-    def next_run(self) -> datetime:
+    def next_run(self) -> datetime.datetime:
         """The next run time for this Cron schedule
         :returns: the next run time for this Cron schedule
 
